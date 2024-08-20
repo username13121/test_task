@@ -7,6 +7,8 @@ from users.models import Subscription
 
 User = get_user_model()
 
+MAX_CAPACITY_PER_GROUP = 30
+
 
 class LessonSerializer(serializers.ModelSerializer):
     """Список уроков."""
@@ -24,6 +26,8 @@ class LessonSerializer(serializers.ModelSerializer):
 
 class CreateLessonSerializer(serializers.ModelSerializer):
     """Создание уроков."""
+
+    course = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Lesson
@@ -49,10 +53,19 @@ class StudentSerializer(serializers.ModelSerializer):
 class GroupSerializer(serializers.ModelSerializer):
     """Список групп."""
 
-    # TODO Доп. задание
+    students = StudentSerializer(many=True, read_only=True)
+    course = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
+        fields = (
+            'title',
+            'course',
+            'students'
+        )
+
+    def get_course(self, obj):
+        return obj.course.title if obj.course.title else None
 
 
 class CreateGroupSerializer(serializers.ModelSerializer):
@@ -79,27 +92,45 @@ class MiniLessonSerializer(serializers.ModelSerializer):
 class CourseSerializer(serializers.ModelSerializer):
     """Список курсов."""
 
+    is_available = serializers.SerializerMethodField(read_only=True)
     lessons = MiniLessonSerializer(many=True, read_only=True)
     lessons_count = serializers.SerializerMethodField(read_only=True)
     students_count = serializers.SerializerMethodField(read_only=True)
     groups_filled_percent = serializers.SerializerMethodField(read_only=True)
     demand_course_percent = serializers.SerializerMethodField(read_only=True)
 
+    def get_is_available(self, obj):
+        return obj.get_is_available()
+
     def get_lessons_count(self, obj):
         """Количество уроков в курсе."""
-        # TODO Доп. задание
+        return obj.lessons.count()
 
     def get_students_count(self, obj):
         """Общее количество студентов на курсе."""
-        # TODO Доп. задание
+        return obj.subscriptions.count()
 
     def get_groups_filled_percent(self, obj):
         """Процент заполнения групп, если в группе максимум 30 чел.."""
-        # TODO Доп. задание
+        total_students = obj.subscriptions.filter().count()
+        total_groups = obj.groups.count()
+
+        if total_groups == 0:
+            return 0
+
+        total_capacity = total_groups * MAX_CAPACITY_PER_GROUP
+
+        return int((total_students / total_capacity) * 100)
 
     def get_demand_course_percent(self, obj):
         """Процент приобретения курса."""
-        # TODO Доп. задание
+        total_users = User.objects.count()
+
+        if total_users == 0:
+            return 0
+
+        total_subscriptions = obj.subscriptions.count()
+        return int((total_subscriptions / total_users) * 100)
 
     class Meta:
         model = Course
@@ -107,6 +138,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'id',
             'author',
             'title',
+            'is_available',
             'start_date',
             'price',
             'lessons_count',
@@ -122,3 +154,10 @@ class CreateCourseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Course
+        fields = (
+            'id',
+            'author',
+            'title',
+            'start_date',
+            'price'
+        )

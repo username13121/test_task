@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
+
 
 class CustomUser(AbstractUser):
     """Кастомная модель пользователя - студента."""
@@ -29,21 +31,53 @@ class CustomUser(AbstractUser):
 class Balance(models.Model):
     """Модель баланса пользователя."""
 
-    # TODO
+    user = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='balance'
+    )
+    amount = models.PositiveIntegerField(
+        default=1000,
+        verbose_name='Сумма'
+    )
 
     class Meta:
         verbose_name = 'Баланс'
         verbose_name_plural = 'Балансы'
         ordering = ('-id',)
 
+    def __str__(self):
+        return f'Баланс пользователя {self.user}: {self.amount}'
+
 
 class Subscription(models.Model):
     """Модель подписки пользователя на курс."""
 
-    # TODO
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='subscriptions'
+    )
+
+    course = models.ForeignKey(
+        'courses.Course',
+        on_delete=models.CASCADE,
+        related_name='subscriptions'
+    )
+
+    end_date = models.DateTimeField(
+        verbose_name='Дата истечения подписки'
+    )
 
     class Meta:
         verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
         ordering = ('-id',)
+        unique_together = ('user', 'course')
 
+    def get_is_active(self) -> bool:
+        """Активность подписки"""
+        return self.end_date > timezone.now() or self.end_date is None
+
+    def __str__(self):
+        return f'Подписка пользователя {self.user.get_full_name()} на курс {self.course.title}'
